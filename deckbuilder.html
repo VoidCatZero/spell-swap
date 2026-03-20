@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spell Swap — Deck Builder</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --gold: #c4891a; --gold-light: #e8d5a3; --purple: #7c3aed; --purple-dark: #3d1f7a;
+    --bg: #0a0a0f; --bg-card: #0e0c18; --bg-input: #12101a; --bg-panel: #0d0b16;
+    --border: #1e1830; --border-mid: #3d2d6b;
+    --text-muted: #6b6080; --text-body: #b8a898; --text-dim: #5a4a7a;
+    --foil: #a78bdf; --red: #c04040;
+  }
+  body { background: var(--bg); color: var(--text-body); font-family: 'Crimson Text', Georgia, serif; min-height: 100vh; overflow-x: hidden; }
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background: radial-gradient(ellipse 60% 40% at 20% 0%, rgba(124,58,237,0.12) 0%, transparent 60%),
+                radial-gradient(ellipse 50% 40% at 80% 100%, rgba(196,137,26,0.07) 0%, transparent 55%);
+  }
+  .rune-top { position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 200; background: linear-gradient(90deg, transparent, var(--purple) 30%, var(--gold) 50%, var(--purple) 70%, transparent); }
+
+  nav { position: sticky; top: 0; z-index: 100; background: rgba(10,10,15,0.95); border-bottom: 1px solid var(--border-mid); padding: 0 2rem; display: flex; align-items: center; gap: 1.5rem; height: 50px; backdrop-filter: blur(8px); }
+  .nav-logo { font-family: 'Cinzel', serif; font-size: 14px; font-weight: 700; color: var(--gold-light); text-decoration: none; letter-spacing: 0.1em; }
+  .nav-logo span { color: var(--purple); }
+  .nav-sep { width: 1px; height: 18px; background: var(--border-mid); }
+  .nav-link { font-family: 'Cinzel', serif; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; color: var(--text-dim); text-decoration: none; transition: color 0.15s; padding: 4px 10px; border-radius: 4px; border: 1px solid transparent; }
+  .nav-link:hover { color: var(--gold-light); }
+  .nav-link.active { color: var(--gold-light); border-color: var(--border-mid); background: rgba(124,58,237,0.08); }
+
+  .app { display: grid; grid-template-columns: 310px 1fr; min-height: calc(100vh - 53px); position: relative; z-index: 1; }
+
+  .panel-left { background: var(--bg-panel); border-right: 1px solid var(--border-mid); display: flex; flex-direction: column; overflow-y: auto; }
+  .section-block { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); }
+  .section-title { font-family: 'Cinzel', serif; font-size: 10px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 10px; }
+  .panel-hero { padding: 1.25rem; border-bottom: 1px solid var(--border-mid); }
+  .panel-hero h2 { font-family: 'Cinzel', serif; font-size: 16px; font-weight: 700; color: var(--gold-light); letter-spacing: 0.1em; margin-bottom: 4px; }
+  .panel-hero p { font-size: 13px; color: var(--text-muted); font-style: italic; }
+
+  /* Autocomplete search */
+  .autocomplete-wrap { position: relative; }
+  .search-row { display: flex; border: 1px solid var(--border-mid); border-radius: 5px; overflow: hidden; background: var(--bg-input); transition: border-color 0.2s; }
+  .search-row:focus-within { border-color: var(--purple); box-shadow: 0 0 16px rgba(124,58,237,0.1); }
+  .search-row input { flex: 1; background: transparent; border: none; outline: none; padding: 10px 12px; font-family: 'Crimson Text', serif; font-size: 15px; color: var(--gold-light); }
+  .search-row input::placeholder { color: var(--text-dim); }
+  .search-row button { background: linear-gradient(135deg, var(--purple-dark), #5c2d0e); border: none; border-left: 1px solid var(--border-mid); padding: 10px 14px; font-family: 'Cinzel', serif; font-size: 10px; font-weight: 700; color: var(--gold-light); letter-spacing: 0.1em; cursor: pointer; white-space: nowrap; transition: opacity 0.15s; }
+  .search-row button:hover { opacity: 0.85; }
+  .search-row button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .autocomplete-dropdown {
+    display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 50;
+    background: var(--bg-card); border: 1px solid var(--border-mid); border-top: none;
+    border-radius: 0 0 6px 6px; overflow: hidden;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    max-height: 220px; overflow-y: auto;
+  }
+  .ac-item {
+    display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+    cursor: pointer; transition: background 0.12s; border-bottom: 1px solid var(--border);
+  }
+  .ac-item:last-child { border-bottom: none; }
+  .ac-item:hover, .ac-item.focused { background: rgba(124,58,237,0.1); }
+  .ac-img { width: 28px; border-radius: 3px; flex-shrink: 0; border: 1px solid var(--border); }
+  .ac-name { font-family: 'Cinzel', serif; font-size: 12px; color: var(--gold-light); flex: 1; }
+  .ac-type { font-size: 11px; color: var(--text-dim); font-style: italic; }
+
+  /* Commander display */
+  .commander-empty { text-align: center; padding: 1.25rem 1rem; color: var(--text-dim); font-size: 13px; font-style: italic; border: 1px dashed var(--border-mid); border-radius: 6px; }
+  .commander-card { display: flex; gap: 12px; align-items: flex-start; }
+  .commander-card img { width: 72px; border-radius: 5px; border: 1px solid var(--border-mid); box-shadow: 0 4px 16px rgba(0,0,0,0.6); flex-shrink: 0; }
+  .cmd-name { font-family: 'Cinzel', serif; font-size: 13px; font-weight: 600; color: var(--gold-light); margin-bottom: 3px; line-height: 1.3; }
+  .cmd-type { font-size: 12px; color: var(--text-dim); font-style: italic; margin-bottom: 6px; }
+  .cmd-colors { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 4px; }
+  .color-pip { width: 18px; height: 18px; border-radius: 50%; font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); }
+  .pip-W { background: #e8e4cc; color: #333; } .pip-U { background: #1a5fa8; color: #fff; }
+  .pip-B { background: #2a2020; color: #ccc; border-color: #444; } .pip-R { background: #8b2020; color: #fff; }
+  .pip-G { background: #1a4a2a; color: #8fcc8f; } .pip-C { background: #444; color: #ccc; }
+
+  /* Budget selector */
+  #budgetSection { display: none; }
+  .budget-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .budget-option {
+    border: 1px solid var(--border-mid); border-radius: 6px; padding: 8px 10px;
+    cursor: pointer; transition: border-color 0.15s, background 0.15s; background: var(--bg-card); text-align: center;
+  }
+  .budget-option:hover { border-color: var(--gold); background: rgba(196,137,26,0.05); }
+  .budget-option.selected { border-color: var(--gold); background: rgba(196,137,26,0.1); }
+  .budget-label { font-family: 'Cinzel', serif; font-size: 11px; font-weight: 700; color: var(--gold-light); margin-bottom: 2px; }
+  .budget-range { font-size: 11px; color: var(--text-muted); }
+
+  /* Strategy picker */
+  #strategySection { display: none; }
+  .strategy-intro { font-size: 13px; color: var(--text-muted); font-style: italic; margin-bottom: 10px; line-height: 1.5; }
+  .strategy-list { display: flex; flex-direction: column; gap: 6px; }
+  .strategy-option {
+    border: 1px solid var(--border-mid); border-radius: 6px; padding: 10px 12px;
+    cursor: pointer; transition: border-color 0.15s, background 0.15s; background: var(--bg-card); position: relative;
+  }
+  .strategy-option:hover { border-color: var(--gold); background: rgba(196,137,26,0.05); }
+  .strategy-option.selected { border-color: var(--gold); background: rgba(196,137,26,0.08); }
+  .strategy-option.selected::before { content: '✦'; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--gold); font-size: 12px; }
+  .strat-name { font-family: 'Cinzel', serif; font-size: 12px; font-weight: 700; color: var(--gold-light); margin-bottom: 3px; letter-spacing: 0.05em; }
+  .strat-desc { font-size: 12px; color: var(--text-muted); line-height: 1.4; font-style: italic; }
+
+  .btn-build { width: 100%; margin-top: 10px; background: linear-gradient(135deg, var(--purple-dark), #5c2d0e); border: 1px solid var(--border-mid); border-radius: 5px; padding: 10px; font-family: 'Cinzel', serif; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: var(--gold-light); cursor: pointer; transition: opacity 0.15s; display: none; }
+  .btn-build:hover { opacity: 0.85; }
+  .btn-build:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* Add card */
+  .add-results { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; margin-top: 8px; }
+  .sr-item { display: flex; align-items: center; gap: 8px; padding: 5px 7px; border-radius: 5px; border: 1px solid transparent; transition: background 0.15s, border-color 0.15s; }
+  .sr-item:hover { background: rgba(124,58,237,0.08); border-color: var(--border-mid); }
+  .sr-item img { width: 30px; border-radius: 3px; flex-shrink: 0; border: 1px solid var(--border); }
+  .sr-name { font-family: 'Cinzel', serif; font-size: 11px; color: var(--gold-light); flex: 1; line-height: 1.3; }
+  .sr-mana { font-size: 11px; color: var(--text-dim); }
+  .sr-add { background: var(--purple-dark); border: 1px solid var(--border-mid); border-radius: 4px; width: 22px; height: 22px; color: var(--gold-light); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.15s; }
+  .sr-add:hover { background: var(--purple); }
+
+  /* Saved decks */
+  .saved-list { display: flex; flex-direction: column; gap: 6px; }
+  .saved-deck { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border-radius: 5px; background: var(--bg-card); border: 1px solid var(--border); transition: border-color 0.15s; }
+  .saved-deck:hover { border-color: var(--border-mid); }
+  .sd-name { font-family: 'Cinzel', serif; font-size: 12px; color: var(--gold-light); margin-bottom: 2px; }
+  .sd-meta { font-size: 11px; color: var(--text-dim); }
+  .sd-actions { display: flex; gap: 4px; }
+  .sd-btn { background: none; border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; font-size: 11px; cursor: pointer; color: var(--text-muted); transition: all 0.15s; font-family: 'Cinzel', serif; }
+  .sd-btn:hover { background: var(--border); color: var(--gold-light); }
+  .sd-btn.del:hover { border-color: var(--red); color: var(--red); background: rgba(192,64,64,0.1); }
+  .no-decks { font-size: 13px; color: var(--text-dim); font-style: italic; text-align: center; padding: 0.75rem 0; }
+
+  /* Right panel */
+  .panel-right { display: flex; flex-direction: column; background: var(--bg); }
+  .deck-header { padding: 1rem 1.5rem; border-bottom: 1px solid var(--border-mid); background: var(--bg-panel); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .deck-title-wrap { flex: 1; min-width: 0; }
+  .deck-title { font-family: 'Cinzel', serif; font-size: 18px; font-weight: 700; color: var(--gold-light); border: none; background: transparent; outline: none; width: 100%; letter-spacing: 0.06em; }
+  .deck-title:focus { border-bottom: 1px solid var(--border-mid); }
+  .deck-count { font-size: 12px; color: var(--text-dim); margin-top: 2px; font-style: italic; }
+  .deck-tags { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+  .deck-tag { display: inline-block; font-family: 'Cinzel', serif; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; padding: 2px 10px; border-radius: 3px; }
+  .tag-strategy { background: rgba(196,137,26,0.12); border: 1px solid rgba(196,137,26,0.25); color: var(--gold); }
+  .tag-budget { background: rgba(124,58,237,0.12); border: 1px solid rgba(124,58,237,0.25); color: var(--foil); }
+
+  .deck-actions { display: flex; gap: 8px; }
+  .btn { border: 1px solid var(--border-mid); background: transparent; border-radius: 5px; padding: 7px 14px; font-family: 'Cinzel', serif; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; cursor: pointer; transition: all 0.15s; color: var(--text-muted); }
+  .btn:hover { color: var(--gold-light); background: rgba(124,58,237,0.08); }
+  .btn-save { background: linear-gradient(135deg, var(--purple-dark), #5c2d0e); border-color: var(--border-mid); color: var(--gold-light); }
+  .btn-save:hover { opacity: 0.85; background: linear-gradient(135deg, var(--purple-dark), #5c2d0e); }
+  .btn-danger { color: var(--red); }
+  .btn-danger:hover { background: rgba(192,64,64,0.1); border-color: var(--red); color: var(--red); }
+
+  .status-bar { display: none; align-items: center; gap: 10px; padding: 8px 1.5rem; font-size: 13px; color: var(--purple); font-style: italic; background: rgba(124,58,237,0.05); border-bottom: 1px solid rgba(124,58,237,0.1); }
+  .spinner { width: 12px; height: 12px; border: 2px solid var(--border-mid); border-top-color: var(--purple); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .err { display: none; background: rgba(192,64,64,0.1); border: 1px solid rgba(192,64,64,0.25); border-radius: 5px; padding: 10px 14px; font-size: 14px; color: #e07070; margin: 0.75rem 1.5rem; }
+
+  .deck-area { flex: 1; padding: 1.5rem; overflow-y: auto; }
+  .deck-empty { text-align: center; padding: 5rem 2rem; color: var(--text-dim); }
+  .deck-empty .sigil { font-size: 40px; margin-bottom: 14px; color: var(--border-mid); }
+  .deck-empty p { font-size: 15px; line-height: 1.7; font-style: italic; }
+  .deck-empty strong { color: var(--gold); font-style: normal; }
+
+  .category { margin-bottom: 2rem; }
+  .cat-label { font-family: 'Cinzel', serif; font-size: 10px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+  .cat-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .cat-count { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 1px 8px; font-size: 10px; color: var(--text-muted); }
+
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+  .deck-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 7px; overflow: hidden; position: relative; transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s; }
+  .deck-card:hover { border-color: var(--purple); transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+  .deck-card img { width: 100%; display: block; }
+  .dc-body { padding: 6px 8px; }
+  .dc-name { font-family: 'Cinzel', serif; font-size: 10px; font-weight: 600; color: var(--gold-light); line-height: 1.3; margin-bottom: 2px; }
+  .dc-mana { font-size: 10px; color: var(--text-dim); }
+  .dc-price { font-size: 10px; color: var(--gold); font-weight: 600; }
+  .dc-remove { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.75); border: none; border-radius: 50%; width: 20px; height: 20px; color: #fff; font-size: 13px; cursor: pointer; display: none; align-items: center; justify-content: center; line-height: 1; transition: background 0.15s; }
+  .deck-card:hover .dc-remove { display: flex; }
+  .dc-remove:hover { background: var(--red); }
+
+  .deck-footer { padding: 0.875rem 1.5rem; border-top: 1px solid var(--border-mid); background: var(--bg-panel); display: flex; align-items: center; gap: 2rem; flex-wrap: wrap; }
+  .footer-stat { font-size: 13px; color: var(--text-muted); }
+  .footer-stat strong { font-family: 'Cinzel', serif; font-size: 14px; color: var(--gold-light); }
+  .footer-price strong { color: var(--gold); }
+
+  @media (max-width: 768px) {
+    .app { grid-template-columns: 1fr; }
+    .panel-left { border-right: none; border-bottom: 1px solid var(--border-mid); max-height: 75vh; }
+    .card-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+  }
+
+  /* Card modal */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 500;
+    background: rgba(0,0,0,0.75);
+    display: flex; align-items: center; justify-content: center;
+    padding: 1.5rem;
+    animation: fadeIn 0.15s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  .modal {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-mid);
+    border-radius: 12px;
+    width: 100%;
+    max-width: 760px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(124,58,237,0.2);
+    animation: slideUp 0.2s ease;
+  }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+  .modal-header {
+    display: flex; gap: 1.25rem; padding: 1.5rem;
+    border-bottom: 1px solid var(--border);
+    align-items: flex-start;
+  }
+  .modal-img {
+    width: 140px; border-radius: 8px; flex-shrink: 0;
+    border: 1px solid var(--border-mid);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.7);
+  }
+  .modal-card-info { flex: 1; min-width: 0; }
+  .modal-name { font-family: 'Cinzel', serif; font-size: 20px; font-weight: 700; color: var(--gold-light); margin-bottom: 4px; letter-spacing: 0.06em; }
+  .modal-type { font-size: 13px; color: var(--text-dim); font-style: italic; margin-bottom: 8px; }
+  .modal-oracle { font-size: 15px; color: var(--text-body); line-height: 1.7; margin-bottom: 12px; }
+  .modal-prices { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .modal-price-pill { font-family: 'Cinzel', serif; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 4px; letter-spacing: 0.06em; }
+  .mpill-normal { background: rgba(196,137,26,0.15); border: 1px solid rgba(196,137,26,0.3); color: var(--gold); }
+  .mpill-foil { background: rgba(167,139,223,0.12); border: 1px solid rgba(167,139,223,0.3); color: var(--foil); }
+  .modal-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .modal-btn { font-family: 'Cinzel', serif; font-size: 11px; font-weight: 600; letter-spacing: 0.07em; padding: 7px 16px; border-radius: 5px; cursor: pointer; transition: all 0.15s; border: 1px solid var(--border-mid); background: transparent; color: var(--text-muted); }
+  .modal-btn:hover { color: var(--gold-light); background: rgba(124,58,237,0.08); }
+  .modal-btn.remove { color: var(--red); }
+  .modal-btn.remove:hover { background: rgba(192,64,64,0.1); border-color: var(--red); }
+  .modal-close { margin-left: auto; background: none; border: none; color: var(--text-dim); font-size: 20px; cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: color 0.15s; line-height: 1; }
+  .modal-close:hover { color: var(--gold-light); }
+
+  .modal-similar { padding: 1.25rem 1.5rem; }
+  .modal-section-title { font-family: 'Cinzel', serif; font-size: 10px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+  .modal-section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .similar-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+  .sim-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 7px; overflow: hidden; cursor: pointer; transition: border-color 0.15s, transform 0.15s; }
+  .sim-card:hover { border-color: var(--gold); transform: translateY(-2px); }
+  .sim-card img { width: 100%; display: block; }
+  .sim-body { padding: 7px 9px; }
+  .sim-name { font-family: 'Cinzel', serif; font-size: 10px; font-weight: 600; color: var(--gold-light); line-height: 1.3; margin-bottom: 2px; }
+  .sim-type { font-size: 10px; color: var(--text-dim); font-style: italic; margin-bottom: 3px; }
+  .sim-price { font-size: 10px; color: var(--gold); font-weight: 600; }
+  .sim-add { display: block; width: 100%; background: rgba(124,58,237,0.15); border: none; border-top: 1px solid var(--border); padding: 5px; font-family: 'Cinzel', serif; font-size: 10px; font-weight: 700; color: var(--foil); letter-spacing: 0.08em; cursor: pointer; transition: background 0.15s; }
+  .sim-add:hover { background: rgba(124,58,237,0.3); }
+  .modal-loading { text-align: center; padding: 2rem; color: var(--text-dim); font-style: italic; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+</style>
+</head>
+<body>
+<div class="rune-top"></div>
+<nav>
+  <a href="index.html" class="nav-logo">SPELL <span>SWAP</span></a>
+  <div class="nav-sep"></div>
+  <a href="index.html" class="nav-link">✦ Card Finder</a>
+  <a href="deckbuilder.html" class="nav-link active">⚔ Deck Builder</a>
+</nav>
+
+<div class="app">
+  <div class="panel-left">
+    <div class="panel-hero">
+      <h2>⚔ Deck Builder</h2>
+      <p>Commander · Strategy · Budget · Build</p>
+    </div>
+
+    <!-- Step 1: Commander -->
+    <div class="section-block">
+      <div class="section-title">① Choose Commander</div>
+      <div class="autocomplete-wrap">
+        <div class="search-row" id="cmdSearchRow">
+          <input type="text" id="cmdSearch" placeholder="Type a commander name…" autocomplete="off" spellcheck="false" />
+          <button id="cmdSearchBtn">SEEK</button>
+        </div>
+        <div class="autocomplete-dropdown" id="acDropdown"></div>
+      </div>
+      <div id="commanderDisplay" style="margin-top:10px">
+        <div class="commander-empty">No commander selected.<br>Type above to search.</div>
+      </div>
+    </div>
+
+    <!-- Step 2: Budget -->
+    <div class="section-block" id="budgetSection">
+      <div class="section-title">② Set Your Budget</div>
+      <div class="budget-grid">
+        <div class="budget-option" data-max="50" data-label="Pauper" onclick="selectBudget(this)">
+          <div class="budget-label">Pauper</div>
+          <div class="budget-range">Under $50</div>
+        </div>
+        <div class="budget-option" data-max="150" data-label="Budget" onclick="selectBudget(this)">
+          <div class="budget-label">Budget</div>
+          <div class="budget-range">$50 – $150</div>
+        </div>
+        <div class="budget-option" data-max="400" data-label="Mid-Range" onclick="selectBudget(this)">
+          <div class="budget-label">Mid-Range</div>
+          <div class="budget-range">$150 – $400</div>
+        </div>
+        <div class="budget-option" data-max="99999" data-label="No Limit" onclick="selectBudget(this)">
+          <div class="budget-label">No Limit</div>
+          <div class="budget-range">Anything goes</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Strategy -->
+    <div class="section-block" id="strategySection">
+      <div class="section-title">③ Choose a Strategy</div>
+      <p class="strategy-intro" id="strategyIntro"></p>
+      <div class="strategy-list" id="strategyList"></div>
+      <button class="btn-build" id="buildBtn" onclick="buildDeck()">✦ Build This Deck</button>
+    </div>
+
+    <!-- Step 4: Manual add -->
+    <div class="section-block">
+      <div class="section-title">④ Add Cards Manually</div>
+      <div class="autocomplete-wrap">
+        <div class="search-row">
+          <input type="text" id="addSearch" placeholder="Search any card…" autocomplete="off" spellcheck="false" />
+          <button id="addSearchBtn">FIND</button>
+        </div>
+        <div class="autocomplete-dropdown" id="addAcDropdown"></div>
+      </div>
+      <div id="addResults" class="add-results"></div>
+    </div>
+
+    <!-- Saved decks -->
+    <div class="section-block" style="flex:1">
+      <div class="section-title">Saved Decks</div>
+      <div id="savedDecks" class="saved-list"></div>
+    </div>
+  </div>
+
+  <!-- Right panel -->
+  <div class="panel-right">
+    <div class="deck-header">
+      <div class="deck-title-wrap">
+        <input type="text" class="deck-title" id="deckTitle" value="Untitled Deck" />
+        <div class="deck-count" id="deckCount">0 / 100 cards</div>
+        <div class="deck-tags" id="deckTags"></div>
+      </div>
+      <div class="deck-actions">
+        <button class="btn" onclick="exportDeck()">Export</button>
+        <button class="btn btn-save" onclick="saveDeck()">Save ✦</button>
+        <button class="btn btn-danger" onclick="clearDeck()">Clear</button>
+      </div>
+    </div>
+
+    <div class="status-bar" id="statusBar"><span class="spinner"></span><span id="statusText"></span></div>
+    <div class="err" id="errBox"></div>
+
+    <div class="deck-area" id="deckArea">
+      <div class="deck-empty">
+        <div class="sigil">✦</div>
+        <p>Search for a commander, set a <strong>budget</strong>,<br>choose a <strong>strategy</strong>, then hit <strong>Build This Deck</strong>.</p>
+      </div>
+    </div>
+
+    <div class="deck-footer" id="deckFooter" style="display:none">
+      <div class="footer-stat"><strong id="footerTotal">0</strong> cards</div>
+      <div class="footer-stat"><strong id="footerLands">0</strong> lands</div>
+      <div class="footer-stat"><strong id="footerCreatures">0</strong> creatures</div>
+      <div class="footer-stat footer-price">Est. total: <strong id="footerPrice">$0.00</strong></div>
+    </div>
+  </div>
+</div>
+
+<!-- Card detail modal -->
+<div class="modal-overlay" id="cardModal" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modalInner">
+    <div class="modal-header" id="modalHeader"></div>
+    <div class="modal-similar" id="modalSimilar"></div>
+  </div>
+</div>
+
+<!-- Card detail modal -->
+<div class="modal-overlay" id="cardModal" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-header" id="modalHeader"></div>
+    <div class="modal-similar" id="modalSimilar"></div>
+  </div>
+</div>
+
+<script>
+let deck = [];
+let selectedStrategy = null;
+let strategies = [];
+let selectedBudget = null;
+let acTimer = null;
+let addAcTimer = null;
+let focusedAcIndex = -1;
+
+function fmtPrice(p) { return p ? '$' + parseFloat(p).toFixed(2) : null; }
+function cardPrice(c) { return parseFloat(c.prices?.usd || 0); }
+function setStatus(msg) {
+  const el = document.getElementById('statusBar');
+  if (!msg) { el.style.display = 'none'; return; }
+  document.getElementById('statusText').textContent = msg;
+  el.style.display = 'flex';
+}
+function showErr(msg) { const el = document.getElementById('errBox'); el.textContent = msg; el.style.display = msg ? 'block' : 'none'; }
+function colorPips(colors) {
+  if (!colors?.length) return '<span class="color-pip pip-C">C</span>';
+  return colors.map(c => `<span class="color-pip pip-${c}">${c}</span>`).join('');
+}
+
+// ── Autocomplete for commander ────────────────────────────────────────
+const cmdInput = document.getElementById('cmdSearch');
+const acDropdown = document.getElementById('acDropdown');
+
+cmdInput.addEventListener('input', () => {
+  clearTimeout(acTimer);
+  const val = cmdInput.value.trim();
+  if (val.length < 2) { acDropdown.style.display = 'none'; return; }
+  acTimer = setTimeout(() => fetchAutocomplete(val, acDropdown, true), 200);
+});
+
+cmdInput.addEventListener('keydown', e => {
+  const items = acDropdown.querySelectorAll('.ac-item');
+  if (e.key === 'ArrowDown') { focusedAcIndex = Math.min(focusedAcIndex + 1, items.length - 1); updateFocus(items); e.preventDefault(); }
+  else if (e.key === 'ArrowUp') { focusedAcIndex = Math.max(focusedAcIndex - 1, 0); updateFocus(items); e.preventDefault(); }
+  else if (e.key === 'Enter') {
+    if (focusedAcIndex >= 0 && items[focusedAcIndex]) { items[focusedAcIndex].click(); }
+    else { selectCommander(cmdInput.value.trim()); }
+    acDropdown.style.display = 'none';
+  }
+  else if (e.key === 'Escape') { acDropdown.style.display = 'none'; }
+});
+
+document.getElementById('cmdSearchBtn').addEventListener('click', () => {
+  acDropdown.style.display = 'none';
+  selectCommander(cmdInput.value.trim());
+});
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.autocomplete-wrap')) { acDropdown.style.display = 'none'; document.getElementById('addAcDropdown').style.display = 'none'; }
+});
+
+function updateFocus(items) {
+  items.forEach((el, i) => el.classList.toggle('focused', i === focusedAcIndex));
+}
+
+async function fetchAutocomplete(query, dropdown, commanderOnly) {
+  try {
+    // Use Scryfall autocomplete for names
+    const r = await fetch(`https://api.scryfall.com/cards/autocomplete?q=${encodeURIComponent(query)}`);
+    if (!r.ok) return;
+    const data = await r.json();
+    const names = (data.data || []).slice(0, 8);
+    if (!names.length) { dropdown.style.display = 'none'; return; }
+
+    // Fetch card details for each suggestion in parallel (for images/types)
+    const cards = await Promise.all(names.map(async name => {
+      try {
+        const cr = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(name)}`);
+        return cr.ok ? await cr.json() : { name };
+      } catch(_) { return { name }; }
+    }));
+
+    // Filter to legendary only for commander search
+    const filtered = commanderOnly
+      ? cards.filter(c => c.type_line?.includes('Legendary') || c.type_line?.includes('Planeswalker'))
+      : cards;
+
+    if (!filtered.length) { dropdown.style.display = 'none'; return; }
+
+    dropdown.innerHTML = '';
+    filtered.forEach(c => {
+      const img = c.image_uris?.small || c.card_faces?.[0]?.image_uris?.small || '';
+      const div = document.createElement('div');
+      div.className = 'ac-item';
+      div.innerHTML = `
+        ${img ? `<img class="ac-img" src="${img}" alt="${c.name}">` : ''}
+        <div>
+          <div class="ac-name">${c.name}</div>
+          <div class="ac-type">${(c.type_line||'').split('—')[0].trim()}</div>
+        </div>`;
+      div.addEventListener('click', () => {
+        dropdown.style.display = 'none';
+        if (commanderOnly) {
+          cmdInput.value = c.name;
+          confirmCommander(c);
+        } else {
+          document.getElementById('addSearch').value = c.name;
+          addCardToDeck(c);
+          document.getElementById('addResults').innerHTML = '';
+          dropdown.style.display = 'none';
+        }
+      });
+      dropdown.appendChild(div);
+    });
+    focusedAcIndex = -1;
+    dropdown.style.display = 'block';
+  } catch(_) {}
+}
+
+// ── Autocomplete for add card ────────────────────────────────────────
+const addInput = document.getElementById('addSearch');
+const addDropdown = document.getElementById('addAcDropdown');
+
+addInput.addEventListener('input', () => {
+  clearTimeout(addAcTimer);
+  const val = addInput.value.trim();
+  if (val.length < 2) { addDropdown.style.display = 'none'; return; }
+  addAcTimer = setTimeout(() => fetchAutocomplete(val, addDropdown, false), 200);
+});
+
+addInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { searchAddCard(); addDropdown.style.display = 'none'; }
+  if (e.key === 'Escape') addDropdown.style.display = 'none';
+});
+
+document.getElementById('addSearchBtn').addEventListener('click', () => { searchAddCard(); addDropdown.style.display = 'none'; });
+
+// ── Commander selection ───────────────────────────────────────────────
+async function selectCommander(name) {
+  if (!name) return;
+  const btn = document.getElementById('cmdSearchBtn');
+  btn.disabled = true; btn.textContent = '…';
+  showErr('');
+  document.getElementById('budgetSection').style.display = 'none';
+  document.getElementById('strategySection').style.display = 'none';
+
+  try {
+    setStatus('Consulting the chronicles…');
+    const r = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(name)}`);
+    if (!r.ok) { showErr('Commander not found. Try a different name.'); return; }
+    const card = await r.json();
+    if (!card.type_line?.includes('Legendary') && !card.type_line?.includes('Planeswalker')) {
+      showErr('That card cannot be a commander. Try a legendary creature.'); return;
+    }
+    confirmCommander(card);
+  } catch(e) { showErr('Connection error: ' + e.message); }
+  finally { setStatus(null); btn.disabled = false; btn.textContent = 'SEEK'; }
+}
+
+function confirmCommander(card) {
+  commander = card;
+  renderCommander();
+  selectedBudget = null;
+  selectedStrategy = null;
+  strategies = [];
+  document.querySelectorAll('.budget-option').forEach(el => el.classList.remove('selected'));
+  document.getElementById('budgetSection').style.display = 'block';
+  document.getElementById('strategySection').style.display = 'none';
+}
+
+function renderCommander() {
+  const img = commander.image_uris?.normal || commander.card_faces?.[0]?.image_uris?.normal || '';
+  document.getElementById('commanderDisplay').innerHTML = `
+    <div class="commander-card">
+      ${img ? `<img src="${img}" alt="${commander.name}">` : ''}
+      <div>
+        <div class="cmd-name">${commander.name}</div>
+        <div class="cmd-type">${(commander.type_line||'').split('—')[0].trim()}</div>
+        <div class="cmd-colors">${colorPips(commander.color_identity)}</div>
+      </div>
+    </div>`;
+}
+
+// ── Budget selection ──────────────────────────────────────────────────
+function selectBudget(el) {
+  document.querySelectorAll('.budget-option').forEach(e => e.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedBudget = { max: parseFloat(el.dataset.max), label: el.dataset.label };
+  loadStrategies();
+}
+
+// ── Strategy generation ───────────────────────────────────────────────
+async function loadStrategies() {
+  if (!commander || !selectedBudget) return;
+  document.getElementById('strategySection').style.display = 'none';
+  setStatus('Divining strategies for ' + commander.name + '…');
+
+  const oracle = commander.oracle_text || commander.card_faces?.map(f => f.oracle_text).join(' / ') || '';
+  const keywords = commander.keywords?.join(', ') || '';
+  const colors = (commander.color_identity || []).join('') || 'C';
+  const budget = selectedBudget.label;
+
+  strategies = [];
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{
+          role: 'user',
+          content: `You are an experienced MTG Commander player who has played thousands of games. Analyze this commander's card text and suggest how a real player would build around them.
+
+Commander: ${commander.name}
+Type: ${commander.type_line}
+Colors: ${colors}
+Keywords: ${keywords}
+Oracle text: "${oracle}"
+Budget: ${budget}
+
+Think step by step:
+1. What does this card actually DO? What is its primary ability?
+2. What keywords or mechanics does it care about?
+3. What other cards synergize with those specific abilities?
+4. What are the DIFFERENT ways a player could win using this commander as the engine?
+
+For example:
+- A commander with Goad should lead to strategies around forcing combat, political chaos, and cards that also goad or benefit from opponents attacking each other — NOT Voltron.
+- A commander that cares about +1/+1 counters should suggest counter-doublers, proliferate, and hydras — NOT generic goodstuff.
+- A commander with a sacrifice ability should suggest aristocrats, recursion, token generation — NOT control.
+
+Generate 2-6 strategies. Each strategy should feel like advice from a seasoned EDH player who knows this specific commander well. Name each strategy the way the MTG community would actually call it (e.g. "Goad Chaos", "Aristocrats", "Voltron", "Stax", "Spellslinger", "Superfriends", "Reanimator", "Token Swarm", "Infect", "Combat Tricks").
+
+Return ONLY raw JSON, no markdown:
+{
+  "strategies": [
+    {
+      "name": "Community-recognized strategy name (2-4 words)",
+      "description": "One specific sentence describing how THIS commander's abilities fuel this gameplan and how you win.",
+      "focus": "the single most important mechanic keyword",
+      "scryfallQuery": "a Scryfall oracle: search that finds the best synergy cards for this strategy e.g. o:\\"goad\\" or o:\\"whenever a creature attacks\\" or t:equipment"
+    }
+  ]
+}`
+        }]
+      })
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const txt = (data.content || []).find(b => b.type === 'text')?.text || '';
+      const parsed = JSON.parse(txt.replace(/```[\s\S]*?```/g, '').trim());
+      strategies = parsed.strategies || [];
+    }
+  } catch(_) {}
+
+  if (!strategies.length) strategies = buildFallbackStrategies(commander);
+
+  setStatus(null);
+  renderStrategies();
+}
+
+function buildFallbackStrategies(card) {
+  const oracle = (card.oracle_text || '').toLowerCase();
+  const strats = [];
+  if (oracle.includes('goad') || oracle.includes('attack') && oracle.includes('each')) strats.push({ name: 'Goad Chaos', description: `Use ${card.name}'s goad ability to force opponents to attack each other while you sit back and benefit from the chaos.`, focus: 'goad', scryfallQuery: 'o:"goad"' });
+  if (oracle.includes('whenever') && oracle.includes('attack')) strats.push({ name: 'Combat Triggers', description: `Stack cards that trigger whenever creatures attack to generate overwhelming value each combat step.`, focus: 'whenever attacks', scryfallQuery: 'o:"whenever" o:"attacks"' });
+  if (oracle.includes('+1/+1')) strats.push({ name: 'Counter Synergies', description: `Leverage ${card.name}'s +1/+1 counter ability using proliferate and counter doublers as the engine.`, focus: '+1/+1 counter', scryfallQuery: 'o:"+1/+1 counter"' });
+  if (oracle.includes('token') || oracle.includes('create')) strats.push({ name: 'Token Swarm', description: `Exploit ${card.name}'s token generation, flooding the board and winning through sheer numbers.`, focus: 'token', scryfallQuery: 'o:"create a"' });
+  if (oracle.includes('graveyard') || oracle.includes('dies')) strats.push({ name: 'Aristocrats', description: `Use ${card.name}'s death triggers as a recursion and sacrifice engine to drain opponents.`, focus: 'graveyard', scryfallQuery: 'o:"from your graveyard"' });
+  if (oracle.includes('draw') || oracle.includes('library')) strats.push({ name: 'Card Advantage Engine', description: `Build around ${card.name}'s draw ability to generate resource superiority and win through overwhelming value.`, focus: 'draw cards', scryfallQuery: 'o:"draw a card"' });
+  if (oracle.includes('life') || oracle.includes('gain')) strats.push({ name: 'Lifegain Payoffs', description: `Repeatedly trigger ${card.name}'s life ability and convert gained life into winning board states.`, focus: 'gain life', scryfallQuery: 'o:"gain life"' });
+  if (oracle.includes('spell') || oracle.includes('instant') || oracle.includes('sorcery')) strats.push({ name: 'Spellslinger', description: `Cast cheap instants and sorceries to repeatedly trigger ${card.name} and close out the game with spell payoffs.`, focus: 'instant or sorcery', scryfallQuery: 'o:"instant or sorcery"' });
+  if (!strats.length) {
+    strats.push({ name: 'Voltron', description: `Equip ${card.name} with powerful auras and equipment and win through 21 commander damage.`, focus: 'equipment', scryfallQuery: 't:equipment' });
+    strats.push({ name: 'Midrange Value', description: `Play the most powerful cards in ${card.name}'s colors and win through consistent card advantage and board presence.`, focus: 'draw', scryfallQuery: 'o:"draw a card"' });
+  }
+  return strats;
+}
+
+function renderStrategies() {
+  selectedStrategy = null;
+  document.getElementById('buildBtn').style.display = 'none';
+  document.getElementById('strategyIntro').textContent = `Here's how experienced players build ${commander.name}. Pick the gameplan that matches your style:`;
+  const list = document.getElementById('strategyList');
+  list.innerHTML = '';
+  strategies.forEach((s, i) => {
+    const el = document.createElement('div');
+    el.className = 'strategy-option';
+    el.innerHTML = `<div class="strat-name">${s.name}</div><div class="strat-desc">${s.description}</div>`;
+    el.addEventListener('click', () => {
+      selectedStrategy = strategies[i];
+      document.querySelectorAll('.strategy-option').forEach((e, j) => e.classList.toggle('selected', j === i));
+      document.getElementById('buildBtn').style.display = 'block';
+    });
+    list.appendChild(el);
+  });
+  document.getElementById('strategySection').style.display = 'block';
+}
+
+// ── Build deck ────────────────────────────────────────────────────────
+async function buildDeck() {
+  if (!commander || !selectedStrategy || !selectedBudget) return;
+  const btn = document.getElementById('buildBtn');
+  btn.disabled = true;
+  setStatus(`Weaving "${selectedStrategy.name}" deck…`);
+  showErr('');
+
+  const colors = (commander.color_identity || []).join('');
+  const colorQ = colors ? `color<=${colors}` : 'c:c';
+  const budgetFilter = selectedBudget.max < 9999 ? ` usd<=${(selectedBudget.max / 99).toFixed(2)}` : '';
+  const stratQ = selectedStrategy.scryfallQuery || `o:"${selectedStrategy.focus}"`;
+  const cmc = commander.cmc || 3;
+
+  // Request extra cards per category to survive deduplication
+  const categories = [
+    { label: 'Strategy Core', query: `${colorQ} ${stratQ} -t:land${budgetFilter}`, count: 30 },
+    { label: 'Ramp', query: `${colorQ} (o:"search your library for a basic land" or (o:"add" t:artifact)) -t:land${budgetFilter}`, count: 20 },
+    { label: 'Card Draw', query: `${colorQ} (o:"draw two cards" or o:"draw three cards" or o:"draw a card") -t:land${budgetFilter}`, count: 20 },
+    { label: 'Removal', query: `${colorQ} (o:"destroy target" or o:"exile target" or o:"counter target spell") (t:instant or t:sorcery)${budgetFilter}`, count: 20 },
+    { label: 'Creatures', query: `${colorQ} t:creature cmc<=${Math.max(cmc+1,4)}${budgetFilter}`, count: 25 },
+    { label: 'Other Spells', query: `${colorQ} (t:enchantment or t:artifact) -t:creature cmc<=5${budgetFilter}`, count: 20 },
+  ];
+
+  // Target slots per category after dedup
+  const targets = {
+    'Strategy Core': 18, 'Ramp': 10, 'Card Draw': 7,
+    'Removal': 7, 'Creatures': 12, 'Other Spells': 8
+  };
+
+  try {
+    deck = [];
+    document.getElementById('deckTitle').value = `${commander.name} — ${selectedStrategy.name}`;
+
+    const results = await Promise.all(categories.map(async cat => {
+      try {
+        const q = cat.query + ` -name:"${commander.name}"`;
+        const r = await fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(q)}&order=edhrec`);
+        if (!r.ok) return { label: cat.label, cards: [] };
+        const d = await r.json();
+        return { label: cat.label, cards: d.data || [] };
+      } catch(_) { return { label: cat.label, cards: [] }; }
+    }));
+
+    // Lands first (37 total: up to 10 utility + basics to fill)
+    const landR = await fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(colorQ + ' t:land -t:basic' + budgetFilter)}&order=edhrec`);
+    let utilityLands = [];
+    if (landR.ok) { const ld = await landR.json(); utilityLands = (ld.data || []).slice(0, 10); }
+    const basicNames = { W:'Plains', U:'Island', B:'Swamp', R:'Mountain', G:'Forest' };
+    const colorArr = commander.color_identity?.length ? commander.color_identity : ['G'];
+    const basicsNeeded = 37 - utilityLands.length;
+    const perColor = Math.floor(basicsNeeded / colorArr.length);
+    const remainder = basicsNeeded % colorArr.length;
+
+    for (let ci = 0; ci < colorArr.length; ci++) {
+      const col = colorArr[ci];
+      const count = perColor + (ci < remainder ? 1 : 0);
+      try {
+        const br = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(basicNames[col] || 'Forest')}`);
+        if (br.ok) { const bc = await br.json(); for (let i = 0; i < count; i++) deck.push({ ...bc, _category: 'Lands' }); }
+      } catch(_) {}
+    }
+    utilityLands.forEach(c => deck.push({ ...c, _category: 'Lands' }));
+
+    // Add non-land cards with global dedup, respecting per-category targets
+    const seen = new Set([...deck.map(c => c.name)]);
+    for (const cat of results) {
+      const target = targets[cat.label] || 8;
+      let added = 0;
+      for (const c of cat.cards) {
+        if (added >= target) break;
+        if (seen.has(c.name)) continue;
+        seen.add(c.name);
+        deck.push({ ...c, _category: cat.label });
+        added++;
+      }
+    }
+
+    // Pad to 99 if still short — fill with color-appropriate creatures
+    if (deck.length < 99) {
+      const needed = 99 - deck.length;
+      setStatus(`Filling remaining ${needed} slots…`);
+      try {
+        const padQ = `${colorQ} t:creature${budgetFilter} -name:"${commander.name}"`;
+        const pr = await fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(padQ)}&order=edhrec`);
+        if (pr.ok) {
+          const pd = await pr.json();
+          for (const c of pd.data || []) {
+            if (deck.length >= 99) break;
+            if (seen.has(c.name)) continue;
+            seen.add(c.name);
+            deck.push({ ...c, _category: 'Creatures' });
+          }
+        }
+      } catch(_) {}
+    }
+
+    renderDeck();
+    updateTags();
+  } catch(e) {
+    showErr('Could not build deck: ' + e.message);
+  } finally {
+    setStatus(null); btn.disabled = false;
+  }
+}
+
+function updateTags() {
+  const wrap = document.getElementById('deckTags');
+  wrap.innerHTML = '';
+  if (selectedStrategy) wrap.innerHTML += `<span class="deck-tag tag-strategy">${selectedStrategy.name}</span>`;
+  if (selectedBudget) wrap.innerHTML += `<span class="deck-tag tag-budget">${selectedBudget.label}</span>`;
+}
+
+// ── Manual add ────────────────────────────────────────────────────────
+async function searchAddCard() {
+  const name = document.getElementById('addSearch').value.trim();
+  if (!name) return;
+  const btn = document.getElementById('addSearchBtn');
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    const r = await fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(name)}&order=name`);
+    if (!r.ok) { document.getElementById('addResults').innerHTML = '<div style="font-size:13px;color:var(--text-dim);padding:6px;font-style:italic">No cards found.</div>'; return; }
+    const d = await r.json();
+    renderAddResults(d.data.slice(0, 8));
+  } catch(e) {
+    document.getElementById('addResults').innerHTML = '<div style="font-size:13px;color:var(--red);padding:6px">Connection error.</div>';
+  } finally { btn.disabled = false; btn.textContent = 'FIND'; }
+}
+
+function renderAddResults(cards) {
+  const el = document.getElementById('addResults');
+  el.innerHTML = '';
+  cards.forEach(c => {
+    const img = c.image_uris?.small || c.card_faces?.[0]?.image_uris?.small || '';
+    const mana = c.mana_cost || c.card_faces?.[0]?.mana_cost || '';
+    const div = document.createElement('div');
+    div.className = 'sr-item';
+    div.innerHTML = `
+      ${img ? `<img src="${img}" alt="${c.name}">` : ''}
+      <div style="flex:1;min-width:0"><div class="sr-name">${c.name}</div><div class="sr-mana">${mana}</div></div>
+      <button class="sr-add" title="Add to deck">+</button>`;
+    div.querySelector('.sr-add').addEventListener('click', () => addCardToDeck(c));
+    el.appendChild(div);
+  });
+}
+
+function addCardToDeck(c) {
+  const type = (c.type_line || '').toLowerCase();
+  const cat = type.includes('land') ? 'Lands' : type.includes('creature') ? 'Creatures' : (type.includes('instant') || type.includes('sorcery')) ? 'Removal' : 'Other Spells';
+  deck.push({ ...c, _category: cat });
+  renderDeck();
+}
+
+// ── Render deck ───────────────────────────────────────────────────────
+function renderDeck() {
+  const area = document.getElementById('deckArea');
+  if (!deck.length) {
+    area.innerHTML = `<div class="deck-empty"><div class="sigil">✦</div><p>Search for a commander, set a <strong>budget</strong>,<br>choose a <strong>strategy</strong>, then hit <strong>Build This Deck</strong>.</p></div>`;
+    document.getElementById('deckFooter').style.display = 'none';
+    document.getElementById('deckCount').textContent = '0 / 100 cards';
+    return;
+  }
+  const groups = {};
+  deck.forEach((c, idx) => { const cat = c._category||'Other'; if (!groups[cat]) groups[cat]=[]; groups[cat].push({ card:c, idx }); });
+  const order = ['Lands','Ramp','Card Draw','Removal','Strategy Core','Creatures','Other Spells','Other'];
+  area.innerHTML = '';
+  order.forEach(cat => {
+    if (!groups[cat]?.length) return;
+    const section = document.createElement('div');
+    section.className = 'category';
+    section.innerHTML = `<div class="cat-label">${cat} <span class="cat-count">${groups[cat].length}</span></div><div class="card-grid"></div>`;
+    area.appendChild(section);
+    const grid = section.querySelector('.card-grid');
+    groups[cat].forEach(({ card:c, idx }) => {
+      const img = c.image_uris?.small || c.card_faces?.[0]?.image_uris?.small || '';
+      const mana = c.mana_cost || c.card_faces?.[0]?.mana_cost || '';
+      const price = fmtPrice(c.prices?.usd);
+      const el = document.createElement('div');
+      el.className = 'deck-card';
+      el.innerHTML = `
+        ${img ? `<img src="${img}" alt="${c.name}" loading="lazy">` : ''}
+        <div class="dc-body">
+          <div class="dc-name">${c.name}</div>
+          <div class="dc-mana">${mana}</div>
+          ${price ? `<div class="dc-price">${price}</div>` : ''}
+        </div>
+        <button class="dc-remove" onclick="event.stopPropagation();removeCard(${idx})">×</button>`;
+      el.addEventListener('click', () => openCardModal(c, idx));
+      grid.appendChild(el);
+    });
+  });
+  const total = deck.length + (commander ? 1 : 0);
+  const lands = deck.filter(c => (c.type_line||'').toLowerCase().includes('land')).length;
+  const creatures = deck.filter(c => (c.type_line||'').toLowerCase().includes('creature')).length;
+  const totalPrice = deck.reduce((s,c) => s + cardPrice(c), 0) + (commander ? cardPrice(commander) : 0);
+  document.getElementById('deckCount').textContent = `${total} / 100 cards`;
+  document.getElementById('footerTotal').textContent = total;
+  document.getElementById('footerLands').textContent = lands;
+  document.getElementById('footerCreatures').textContent = creatures;
+  document.getElementById('footerPrice').textContent = '$' + totalPrice.toFixed(2);
+  document.getElementById('deckFooter').style.display = 'flex';
+}
+
+function removeCard(idx) { deck.splice(idx, 1); renderDeck(); }
+function clearDeck() {
+  if (!deck.length || !confirm('Clear the entire deck?')) return;
+  deck = []; selectedStrategy = null; selectedBudget = null;
+  document.getElementById('deckTags').innerHTML = '';
+  document.querySelectorAll('.budget-option').forEach(e => e.classList.remove('selected'));
+  renderDeck();
+}
+
+// ── Save / load ───────────────────────────────────────────────────────
+function saveDeck() {
+  if (!deck.length) { showErr('Add some cards before saving.'); return; }
+  const title = document.getElementById('deckTitle').value.trim() || 'Untitled Deck';
+  const saved = getSavedDecks();
+  const id = Date.now().toString();
+  saved[id] = {
+    id, title,
+    strategy: selectedStrategy?.name || null,
+    budget: selectedBudget?.label || null,
+    commander: commander ? { name: commander.name, image: commander.image_uris?.small || commander.card_faces?.[0]?.image_uris?.small || '' } : null,
+    cards: deck.map(c => ({ name: c.name, type_line: c.type_line, mana_cost: c.mana_cost, _category: c._category, prices: c.prices, image: c.image_uris?.small || c.card_faces?.[0]?.image_uris?.small || '' })),
+    savedAt: new Date().toLocaleDateString()
+  };
+  localStorage.setItem('spellswap_decks', JSON.stringify(saved));
+  renderSavedDecks();
+  const btn = document.querySelector('.btn-save');
+  btn.textContent = 'Saved ✓';
+  setTimeout(() => { btn.textContent = 'Save ✦'; }, 1500);
+}
+
+function getSavedDecks() { try { return JSON.parse(localStorage.getItem('spellswap_decks') || '{}'); } catch(_) { return {}; } }
+
+function loadDeck(id) {
+  const d = getSavedDecks()[id];
+  if (!d) return;
+  document.getElementById('deckTitle').value = d.title;
+  deck = d.cards || [];
+  commander = d.commander ? { name: d.commander.name, image_uris: { normal: d.commander.image }, color_identity: [], type_line: 'Legendary Creature' } : null;
+  selectedStrategy = d.strategy ? { name: d.strategy } : null;
+  selectedBudget = d.budget ? { label: d.budget } : null;
+  if (commander) renderCommander();
+  updateTags();
+  renderDeck();
+}
+
+function deleteDeck(id) {
+  if (!confirm('Delete this deck?')) return;
+  const saved = getSavedDecks();
+  delete saved[id];
+  localStorage.setItem('spellswap_decks', JSON.stringify(saved));
+  renderSavedDecks();
+}
+
+function renderSavedDecks() {
+  const saved = getSavedDecks();
+  const el = document.getElementById('savedDecks');
+  const ids = Object.keys(saved);
+  if (!ids.length) { el.innerHTML = '<div class="no-decks">No saved decks yet.</div>'; return; }
+  el.innerHTML = '';
+  ids.reverse().forEach(id => {
+    const d = saved[id];
+    const div = document.createElement('div');
+    div.className = 'saved-deck';
+    div.innerHTML = `
+      <div style="cursor:pointer;flex:1" onclick="loadDeck('${id}')">
+        <div class="sd-name">${d.title}</div>
+        <div class="sd-meta">${(d.cards||[]).length} cards${d.strategy ? ' · ' + d.strategy : ''}${d.budget ? ' · ' + d.budget : ''} · ${d.savedAt}</div>
+      </div>
+      <div class="sd-actions">
+        <button class="sd-btn" onclick="loadDeck('${id}')">Load</button>
+        <button class="sd-btn del" onclick="deleteDeck('${id}')">✕</button>
+      </div>`;
+    el.appendChild(div);
+  });
+}
+
+function exportDeck() {
+  if (!deck.length) { showErr('Nothing to export yet.'); return; }
+  const title = document.getElementById('deckTitle').value.trim() || 'Untitled Deck';
+  let txt = `// ${title}\n`;
+  if (commander) txt += `// Commander: ${commander.name}\n`;
+  if (selectedStrategy) txt += `// Strategy: ${selectedStrategy.name}\n`;
+  if (selectedBudget) txt += `// Budget: ${selectedBudget.label}\n`;
+  txt += '\n';
+  const groups = {};
+  deck.forEach(c => { const cat = c._category||'Other'; if (!groups[cat]) groups[cat]=[]; groups[cat].push(c.name); });
+  Object.entries(groups).forEach(([cat, names]) => { txt += `// ${cat}\n`; names.forEach(n => txt += `1 ${n}\n`); txt += '\n'; });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([txt], { type: 'text/plain' }));
+  a.download = title.replace(/\s+/g,'_') + '.txt';
+  a.click();
+}
+
+renderSavedDecks();
+
+// ── Card modal ────────────────────────────────────────────────────────
+let modalCardIdx = null;
+
+function openCardModal(card, idx) {
+  modalCardIdx = idx;
+  const img = card.image_uris?.normal || card.card_faces?.[0]?.image_uris?.normal || '';
+  const oracle = card.oracle_text || card.card_faces?.map(f => f.oracle_text).join('\n-----\n') || '';
+  const mana = card.mana_cost || card.card_faces?.[0]?.mana_cost || '';
+  const normal = fmtPrice(card.prices?.usd);
+  const foil = fmtPrice(card.prices?.usd_foil);
+
+  document.getElementById('modalHeader').innerHTML = `
+    ${img ? `<img class="modal-img" src="${img}" alt="${card.name}">` : ''}
+    <div class="modal-card-info">
+      <div class="modal-name">${card.name}</div>
+      <div class="modal-type">${card.type_line || ''} ${mana ? '· ' + mana : ''}</div>
+      <div class="modal-oracle">${oracle.replace(/\n/g, '<br>')}</div>
+      <div class="modal-prices">
+        ${normal ? `<span class="modal-price-pill mpill-normal">Normal ${normal}</span>` : ''}
+        ${foil ? `<span class="modal-price-pill mpill-foil">Foil ${foil}</span>` : ''}
+      </div>
+      <div class="modal-actions">
+        <button class="modal-btn remove" onclick="removeFromModal()">Remove from deck</button>
+        <a class="modal-btn" href="${card.scryfall_uri || '#'}" target="_blank" style="text-decoration:none">View on Scryfall →</a>
+      </div>
+    </div>
+    <button class="modal-close" onclick="closeModal()">✕</button>`;
+
+  document.getElementById('modalSimilar').innerHTML = `<div class="modal-loading"><span class="spinner"></span>Finding similar cards…</div>`;
+  document.getElementById('cardModal').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  findSimilarCards(card);
+}
+
+function closeModal() {
+  document.getElementById('cardModal').style.display = 'none';
+  document.body.style.overflow = '';
+  modalCardIdx = null;
+}
+
+function removeFromModal() {
+  if (modalCardIdx !== null) { removeCard(modalCardIdx); closeModal(); }
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+async function findSimilarCards(card) {
+  const oracle = (card.oracle_text || card.card_faces?.map(f => f.oracle_text).join(' ') || '').toLowerCase();
+  const type = card.type_line || '';
+  const colors = (commander?.color_identity || card.color_identity || []).join('');
+  const colorQ = colors ? `color<=${colors}` : '';
+  const budgetFilter = selectedBudget?.max < 9999 ? ` usd<=${(selectedBudget.max / 99).toFixed(2)}` : '';
+
+  const keywordMatches = [
+    'flying','trample','haste','lifelink','deathtouch','vigilance','flash','hexproof',
+    'indestructible','menace','first strike','double strike','goad',
+    'draw a card','draw two cards','draw three cards',
+    'deal damage','deals damage','destroy target','exile target','return target',
+    'counter target spell','create a','token','search your library',
+    'sacrifice','tap target','untap','proliferate','discard','mill',
+    'scry','surveil','enters the battlefield','gain life',
+    '+1/+1 counter','-1/-1 counter','whenever','attacks','graveyard',
+  ].filter(k => oracle.includes(k));
+
+  const top = keywordMatches.slice(0, 2);
+  let query;
+  if (top.length > 0) {
+    query = top.map(k => `o:"${k}"`).join(' ');
+  } else {
+    const mainType = ['Creature','Instant','Sorcery','Enchantment','Artifact','Planeswalker'].find(t => type.includes(t)) || '';
+    query = mainType ? `t:${mainType}` : 't:instant';
+  }
+  if (colorQ) query += ` ${colorQ}`;
+  query += ` -name:"${card.name}"${budgetFilter}`;
+
+  const similar = document.getElementById('modalSimilar');
+  try {
+    const r = await fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(query)}&order=edhrec`);
+    if (!r.ok) { similar.innerHTML = '<div class="modal-loading">No similar cards found.</div>'; return; }
+    const data = await r.json();
+    const cards = (data.data || []).slice(0, 12);
+    if (!cards.length) { similar.innerHTML = '<div class="modal-loading">No similar cards found.</div>'; return; }
+
+    const label = top.length ? top.join(' · ') : 'similar type';
+    similar.innerHTML = `
+      <div class="modal-section-title">Similar cards — ${label}</div>
+      <div class="similar-grid" id="similarGrid"></div>`;
+
+    const grid = document.getElementById('similarGrid');
+    cards.forEach(c => {
+      const img = c.image_uris?.small || c.card_faces?.[0]?.image_uris?.small || '';
+      const price = fmtPrice(c.prices?.usd);
+      const alreadyIn = deck.some(d => d.name === c.name);
+      const el = document.createElement('div');
+      el.className = 'sim-card';
+      el.innerHTML = `
+        ${img ? `<img src="${img}" alt="${c.name}" loading="lazy">` : ''}
+        <div class="sim-body">
+          <div class="sim-name">${c.name}</div>
+          <div class="sim-type">${(c.type_line||'').split('—')[0].trim()}</div>
+          ${price ? `<div class="sim-price">${price}</div>` : ''}
+        </div>
+        <button class="sim-add" ${alreadyIn ? 'disabled style="opacity:0.4;cursor:default"' : ''}>
+          ${alreadyIn ? 'Already in deck' : '+ Add to deck'}
+        </button>`;
+      el.querySelector('.sim-add').addEventListener('click', e => {
+        e.stopPropagation();
+        if (!alreadyIn) {
+          addCardToDeck(c);
+          el.querySelector('.sim-add').textContent = 'Already in deck';
+          el.querySelector('.sim-add').disabled = true;
+          el.querySelector('.sim-add').style.opacity = '0.4';
+        }
+      });
+      grid.appendChild(el);
+    });
+  } catch(e) {
+    similar.innerHTML = `<div class="modal-loading">Could not load similar cards.</div>`;
+  }
+}
+</script>
+</body>
+</html>
